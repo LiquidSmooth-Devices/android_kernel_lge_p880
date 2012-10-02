@@ -143,6 +143,13 @@ static unsigned long min_sample_time;
 #define DEFAULT_TIMER_RATE 20000;
 static unsigned long timer_rate;
 
+/* Defines to control mid-range frequencies */
+#define DEFAULT_MID_RANGE_GO_MAXSPEED_LOAD 95
+
+static unsigned long midrange_freq;
+static unsigned long midrange_go_maxspeed_load;
+static unsigned long midrange_max_boost;
+
 /*
  * Wait this long before raising speed above hispeed, by default a single
  * timer interval.
@@ -344,12 +351,7 @@ static unsigned int cpufreq_interactive_get_target(
 	unsigned int target_freq;
 	unsigned int maxspeed_load = go_maxspeed_load;
 	unsigned int mboost = max_boost;
-#if 1//def CONFIG_MACH_X3
-	struct cpufreq_interactive_cpuinfo *pcpu = NULL;
-	struct dynamic_freq_param *param = NULL;
-	unsigned long low_boundary = 0;
-	unsigned long high_boundary = 0;
-#endif
+
 	/*
 	 * Choose greater of short-term load (since last idle timer
 	 * started or timer function re-armed itself) or long-term load
@@ -361,13 +363,16 @@ static unsigned int cpufreq_interactive_get_target(
 	/* Exponential boost policy */
 	if (boost_factor) {
 
+		if (midrange_freq && pcpu->policy->cur > midrange_freq) {
+			maxspeed_load = midrange_go_maxspeed_load;
+			mboost = midrange_max_boost;
+		}
+
 		if (cpu_load >= go_maxspeed_load) {
 			target_freq = pcpu->policy->cur * boost_factor;
 
-			if (max_boost &&
-				target_freq > pcpu->policy->cur + max_boost)
-
-				target_freq = pcpu->policy->cur + max_boost;
+			if (mboost && target_freq > pcpu->policy->cur + mboost)
+				target_freq = pcpu->policy->cur + mboost;
 		} else {
 
 			if (!sustain_load)
@@ -1020,6 +1025,51 @@ static ssize_t store_go_maxspeed_load(struct kobject *kobj,
 static struct global_attr go_maxspeed_load_attr = __ATTR(go_maxspeed_load, 0644,
 		show_go_maxspeed_load, store_go_maxspeed_load);
 
+static ssize_t show_midrange_freq(struct kobject *kobj,
+				     struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%lu\n", midrange_freq);
+}
+
+static ssize_t store_midrange_freq(struct kobject *kobj,
+			struct attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	unsigned long val;
+
+	ret = strict_strtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	midrange_freq = val;
+	return count;
+}
+
+static struct global_attr midrange_freq_attr = __ATTR(midrange_freq, 0644,
+		show_midrange_freq, store_midrange_freq);
+
+static ssize_t show_midrange_go_maxspeed_load(struct kobject *kobj,
+				     struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%lu\n", midrange_go_maxspeed_load);
+}
+
+static ssize_t store_midrange_go_maxspeed_load(struct kobject *kobj,
+			struct attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	unsigned long val;
+
+	ret = strict_strtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	midrange_go_maxspeed_load = val;
+	return count;
+}
+
+static struct global_attr midrange_go_maxspeed_load_attr =
+	__ATTR(midrange_go_maxspeed_load, 0644,
+	show_midrange_go_maxspeed_load, store_midrange_go_maxspeed_load);
+
 static ssize_t show_boost_factor(struct kobject *kobj,
 				     struct attribute *attr, char *buf)
 {
@@ -1103,6 +1153,29 @@ static ssize_t show_cores_states(struct kobject *kobj,
 	unsigned int cores[4];
 	unsigned int loads[4];
 	unsigned int i = 0;
+
+static ssize_t show_midrange_max_boost(struct kobject *kobj,
+				     struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%lu\n", midrange_max_boost);
+}
+
+static ssize_t store_midrange_max_boost(struct kobject *kobj,
+			struct attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	unsigned long val;
+
+	ret = strict_strtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	midrange_max_boost = val;
+	return count;
+}
+
+static struct global_attr midrange_max_boost_attr =
+	 __ATTR(midrange_max_boost, 0644,
+	show_midrange_max_boost, store_midrange_max_boost);
 
 static ssize_t show_hispeed_freq(struct kobject *kobj,
 				 struct attribute *attr, char *buf)
@@ -1428,6 +1501,7 @@ static int __init cpufreq_interactive_init(void)
 	int ret;
 #endif
 	go_maxspeed_load = DEFAULT_GO_MAXSPEED_LOAD;
+	midrange_go_maxspeed_load = DEFAULT_MID_RANGE_GO_MAXSPEED_LOAD;
 	go_hispeed_load = DEFAULT_GO_HISPEED_LOAD;
 	min_sample_time = DEFAULT_MIN_SAMPLE_TIME;
 	above_hispeed_delay_val = DEFAULT_ABOVE_HISPEED_DELAY;
