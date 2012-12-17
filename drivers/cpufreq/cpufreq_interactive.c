@@ -84,9 +84,7 @@ static spinlock_t up_cpumask_lock;
 static cpumask_t down_cpumask;
 static spinlock_t down_cpumask_lock;
 static struct mutex set_speed_lock;
-static struct mutex gov_state_lock;
 static struct kobject *interactive_kobj;
-static unsigned int active_count;
 
 struct cpufreq_interactive_core_lock {
 	struct pm_qos_request_list qos_min_req;
@@ -1402,22 +1400,18 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		 * Do not register the idle hook and create sysfs
 		 * entries if we have already done so.
 		 */
-		if (active_count == 1) {
-			rc = sysfs_create_group(cpufreq_global_kobject,
-					&interactive_attr_group);
-			interactive_kobj = kobject_create_and_add(
-						"gov_interactive",
-						cpufreq_global_kobject);
-			kobject_uevent(interactive_kobj, KOBJ_ADD);
-			if (rc) {
-				mutex_unlock(&gov_state_lock);
-				return rc;
-			}
-		}
-#if 1 //def CONFIG_MACH_X3
-		cpufreq_interactive_dynamic_freq_init();
-#endif
-		mutex_unlock(&gov_state_lock);
+
+		if (atomic_inc_return(&active_count) > 1)
+			return 0;
+
+		rc = sysfs_create_group(cpufreq_global_kobject,
+				&interactive_attr_group);
+		interactive_kobj = kobject_create_and_add(
+					"gov_interactive",
+					cpufreq_global_kobject);
+		kobject_uevent(interactive_kobj, KOBJ_ADD);
+		if (rc)
+			return rc;
 
 		rc = input_register_handler(&cpufreq_interactive_input_handler);
 		if (rc)
@@ -1457,6 +1451,8 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		input_unregister_handler(&cpufreq_interactive_input_handler);
 		sysfs_remove_group(cpufreq_global_kobject,
 				&interactive_attr_group);
+		kobject_uevent(interactive_kobj, KOBJ_REMOVE);
+		kobject_put(interactive_kobj);
 
 		break;
 
