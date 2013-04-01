@@ -1437,16 +1437,8 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		}
 
 		flush_work(&freq_scale_down_work);
-		mutex_lock(&gov_state_lock);
-
-		active_count--;
-
-		if (active_count == 0) {
-			sysfs_remove_group(cpufreq_global_kobject,
-					&interactive_attr_group);
-			kobject_uevent(interactive_kobj, KOBJ_REMOVE);
-			kobject_put(interactive_kobj);
-		}
+		if (atomic_dec_return(&active_count) > 0)
+			return 0;
 
 		input_unregister_handler(&cpufreq_interactive_input_handler);
 		sysfs_remove_group(cpufreq_global_kobject,
@@ -1542,7 +1534,6 @@ static int __init cpufreq_interactive_init(void)
 	spin_lock_init(&up_cpumask_lock);
 	spin_lock_init(&down_cpumask_lock);
 	mutex_init(&set_speed_lock);
-	mutex_init(&gov_state_lock);
 
 	pm_qos_add_request(&core_lock.qos_min_req, PM_QOS_MIN_ONLINE_CPUS,
 			PM_QOS_MIN_ONLINE_CPUS_DEFAULT_VALUE);
