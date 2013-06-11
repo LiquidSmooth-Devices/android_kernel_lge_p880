@@ -35,7 +35,13 @@ struct map_desc {
 #ifdef CONFIG_MMU
 extern void iotable_init(struct map_desc *, int);
 
-struct mem_type;
+struct mem_type {
+	pteval_t prot_pte;
+	pmdval_t prot_l1;
+	pmdval_t prot_sect;
+	unsigned int domain;
+};
+
 extern const struct mem_type *get_mem_type(unsigned int type);
 /*
  * external interface to remap single page with appropriate type
