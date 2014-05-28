@@ -3730,7 +3730,7 @@ calc_load_n(unsigned long load, unsigned long exp,
  * Once we've updated the global active value, we need to apply the exponential
  * weights adjusted to the number of cycles missed.
  */
-static void calc_global_nohz(unsigned long ticks)
+static void calc_global_nohz(void)
 {
 	long delta, active, n;
 	if (!time_before(jiffies, calc_load_update + 10)) {
@@ -3775,8 +3775,6 @@ static inline void calc_global_nohz(void) { }
 void calc_global_load(unsigned long ticks)
 {
 	long active, delta;
-
-	calc_global_nohz(ticks);
 
 	if (time_before(jiffies, calc_load_update + 10))
 		return;
