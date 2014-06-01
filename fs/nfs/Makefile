@@ -1,7 +1,6 @@
 #
 # Makefile for the Linux nfs filesystem routines.
 #
-CFLAGS_KERNEL	:= -fno-unsafe-math-optimizations
 
 obj-$(CONFIG_NFS_FS) += nfs.o
 
